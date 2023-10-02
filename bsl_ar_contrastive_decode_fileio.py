@@ -1,87 +1,57 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright 2021 The HuggingFace Inc. team. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""
-Fine-tuning the library models for masked language modeling (BERT, ALBERT, RoBERTa...)
-on a text file or a dataset without using HuggingFace Trainer.
-
-Here is the full list of checkpoints on the hub that can be fine-tuned by this script:
-https://huggingface.co/models?filter=masked-lm
-"""
-# You can also adapt this script on your own mlm task. Pointers for this are left as comments.
 
 import argparse
-from cmath import exp
 import logging
-import math
-from multiprocessing.sharedctypes import Value
 import os
-import random
-from pathlib import Path
 
 import datasets
 import torch
-from datasets import load_dataset
-from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
-                              TensorDataset)
-from tqdm.auto import tqdm
 
 import transformers
 import accelerate
-from accelerate import Accelerator, DistributedType
-from huggingface_hub import Repository
+from accelerate import Accelerator
 from transformers import (
     CONFIG_MAPPING,
     MODEL_MAPPING,
-    AdamW,
     AutoConfig,
     AutoModel,
     AutoModelForMaskedLM,
     AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
-    AutoModelForSequenceClassification,
     AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    DefaultDataCollator,
     SchedulerType,
-    get_scheduler,
-    set_seed,
 )
-from transformers.file_utils import get_full_repo_name
 from transformers.utils.versions import require_version
 
 import numpy as np
-import pickle
-from filelock import FileLock
-import dill
-from datasets import load_from_disk
-from datasets import concatenate_datasets
 from termcolor import colored
-import time
 import json
-from flufl.lock import Lock
 from accelerate import InitProcessGroupKwargs
 import datetime
-
-from my_utils import *
 
 
 logger = logging.getLogger(__name__)
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
 MODEL_CONFIG_CLASSES = list(MODEL_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
+
+
+def logits_sampling_projection(logits, top_p, one_hot_value):
+    assert len(logits.size()) == 3
+
+    # get top-p indices
+    probs = torch.nn.functional.softmax(logits, dim=-1)
+    sorted_probs, indices = torch.sort(probs, dim=-1, descending=True)
+    cum_sum_probs = torch.cumsum(sorted_probs, dim=-1)
+    nucleus = cum_sum_probs < top_p
+    nucleus = torch.cat([nucleus.new_ones(nucleus.shape[:-1] + (1,)), nucleus[..., :-1]], dim=-1)
+    valid_indices = nucleus.scatter(2, indices, nucleus)
+
+    filtered_logits = logits.masked_fill(valid_indices == 0, torch.finfo(logits.dtype).min)
+    m = torch.distributions.categorical.Categorical(logits=filtered_logits)
+    selected = m.sample()
+    return (2 * one_hot_value * torch.nn.functional.one_hot(selected, logits.size(2)) - one_hot_value) #.to(logits.dtype)
 
 
 def filter_logits_top_p(logits, top_p, negative_multiplier=False):
@@ -102,14 +72,8 @@ def filter_logits_top_p(logits, top_p, negative_multiplier=False):
     return filtered_logits
 
 
-def decode(args, batch_input_ids, dec_depth, total_t, model, tokenizer, suffix_ids, init_x, batch_sim_targets, print_interval=100):
+def decode(args, batch_input_ids, dec_depth, total_t, model, tokenizer):
     batch_size = args.per_device_eval_batch_size
-
-    # if args.decode_truncate_len > 0:
-    #     diffusion_input_ids = batch_input_ids[:, args.context_size:-args.decode_truncate_len]
-    # else:
-    #     diffusion_input_ids = batch_input_ids[:, args.context_size:]
-    diffusion_input_ids = batch_input_ids[:, args.context_size:] # Han: there should not exist a gold sequence
     assert batch_input_ids.size(1) == args.context_size
     
     # for each decode step
@@ -158,11 +122,6 @@ def decode(args, batch_input_ids, dec_depth, total_t, model, tokenizer, suffix_i
 
         equivalent_score = outputs.logits[:, -1:, :].clone().contiguous()
 
-        # Han: try adding a score filter here, based on equivalent_score on device 0 (with context)
-        # (TODO) all scores from non-top p tokens are set to -inf
-        # filter_process_id = 0
-        # if args.accelerator.process_index == filter_process_id:
-        #     equivalent_score = filter_logits_top_p(equivalent_score, top_p=args.filter_top_p)
         if args.assigned_weight >= 0:
             equivalent_score = filter_logits_top_p(equivalent_score, top_p=args.filter_top_p)
         else:
@@ -215,14 +174,9 @@ def decode(args, batch_input_ids, dec_depth, total_t, model, tokenizer, suffix_i
     else:
         init_context_input_ids = None
         context_sequences = None
-    if args.reverse_lm:
-        gold_sequences = tokenizer.batch_decode(torch.fliplr(diffusion_input_ids).clone().detach().to('cpu'), skip_special_tokens=True)
-        sampled_sequences = tokenizer.batch_decode(torch.fliplr(history_decode_ids).clone().detach().to('cpu'), skip_special_tokens=True)
-    else:
-        gold_sequences = tokenizer.batch_decode(diffusion_input_ids.clone().detach().to('cpu'), skip_special_tokens=True)
-        sampled_sequences = tokenizer.batch_decode(history_decode_ids.clone().detach().to('cpu'), skip_special_tokens=True)
+    sampled_sequences = tokenizer.batch_decode(history_decode_ids.clone().detach().to('cpu'), skip_special_tokens=True)
     logger.info(f"context: {context_sequences}")
-    logger.info(f"gold: {colored(str(gold_sequences), 'yellow')}")
+    # logger.info(f"gold: {colored(str(gold_sequences), 'yellow')}")
     logger.info(f"sampled: {colored(str(sampled_sequences), 'red')}")
 
     # # debug
@@ -232,7 +186,7 @@ def decode(args, batch_input_ids, dec_depth, total_t, model, tokenizer, suffix_i
     #     breakpoint()
     # args.accelerator.wait_for_everyone()
 
-    return history_decode_ids, init_context_input_ids, diffusion_input_ids, sampled_sequences, context_sequences, gold_sequences
+    return history_decode_ids, init_context_input_ids, None, sampled_sequences, context_sequences, None
 
 
 def parse_args():
@@ -510,13 +464,7 @@ def main():
         else:
             args.orig_model_name_or_path = args.model_name_or_path
     elif args.train_mode == "train":
-        raise ValueError("training should be in a separate file")
-        train_losses_log_file = os.path.join(args.output_dir, "training_losses.txt")
-        if accelerator.is_main_process:
-            if os.path.exists(train_losses_log_file):
-                os.remove(train_losses_log_file)
-                logger.info(f"Cleaning existing {train_losses_log_file}")
-        accelerator.wait_for_everyone()
+        raise ValueError("training should be in a separate file (irrelevant in CAD)")
 
     # Han: assign ensemble models
     args.remove_noise_mode = args.remove_noise_mode.split('|')
@@ -536,16 +484,6 @@ def main():
             assert ' '.join(rank2model[_fd['assigned_process']]) == ' '.join(_fd['assigned_model'].split('|'))
         else:
             rank2model[_fd['assigned_process']] = _fd['assigned_model'].split('|') # first model_path, then suffix like "reverse"
-    # if 'reverse' in rank2model[accelerator.process_index]:
-    #     args.reverse_lm = True
-    #     args.model_name_or_path = rank2model[accelerator.process_index][0]
-    #     time.sleep(int(accelerator.process_index) * 1)
-    #     print(f"process {accelerator.process_index} loads reverse model {args.model_name_or_path}")
-    # else:
-    #     args.reverse_lm = False
-    #     args.model_name_or_path = rank2model[accelerator.process_index][0]
-    #     time.sleep(int(accelerator.process_index) * 1)
-    #     print(f"process {accelerator.process_index} loads regular model {args.model_name_or_path}")
 
     # Han: add gathering group
     default_backend = torch.distributed.get_backend(torch.distributed.distributed_c10d._get_default_group())
@@ -598,51 +536,6 @@ def main():
                 "You are instantiating a new tokenizer from scratch. This is not supported by this script."
                 "You can do it from another script, save it, and load it from here, using --tokenizer_name."
             )
-
-    # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
-    # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
-    # (the dataset will be downloaded automatically from the datasets Hub).
-    #
-    # For CSV/JSON files, this script will use the column called 'text' or the first column if no column called
-    # 'text' is found. You can easily tweak this behavior (see below).
-    #
-    # In distributed training, the load_dataset function guarantee that only one local process can concurrently
-    # download the dataset.
-    # jump = False
-    # if args.tokenized_data_file_path and args.if_create_tokenized_data_file:
-    #     if args.if_create_tokenized_data_file == "no":
-    #         tokenized_datasets = load_from_disk(args.tokenized_data_file_path)
-    #         jump = True
-    #     elif args.if_create_tokenized_data_file == "yes":
-    #         raise ValueError("should not create dataset in this train file")
-    #         if accelerator.is_main_process:
-    #             pass
-    #     else:
-    #         raise ValueError("check args.if_create_tokenized_data_file")
-
-    # full_dataset = tokenized_datasets["train"] 
-    # validation_ratio = 0.01 # 1 pct of the data is used for validation
-    # validation_len = int(len(full_dataset) * validation_ratio)
-    # train_len = len(full_dataset) - validation_len
-    # train_dataset, eval_dataset = torch.utils.data.random_split(full_dataset, [train_len, validation_len], generator=torch.Generator().manual_seed(42)) # fixing seed here
-
-    # # Log a few random samples from the training set:
-    # for index in random.sample(range(len(train_dataset)), 1): # 3
-    #     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-
-    # # Data collator
-    # # This one will take care of randomly masking the tokens.
-    # assert args.mlm_probability == 0 # diffusion model does not use [MASK]
-    # # data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
-    # data_collator = DefaultDataCollator()
-
-    # DataLoaders creation:
-    # train_dataloader = DataLoader(
-    #     train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
-    # )
-    # eval_dataloader = DataLoader(
-    #     eval_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size, generator=torch.Generator().manual_seed(42)
-    # )
 
     if args.init_blank_language_model:
         raise ValueError("disabled for now")
@@ -788,21 +681,10 @@ def main():
         model = AutoModelForMaskedLM.from_config(config)
 
     model.resize_token_embeddings(len(tokenizer))
-    # if not os.path.exists(args.model_name_or_path): # if not having the embedding sum layer (for diffusion) already
-    #     model.get_decoder().embedding_sum_layer = nn.Linear(len(tokenizer), config.hidden_size, bias=False) # resize
-    #     with torch.no_grad():
-    #         model.get_decoder().embedding_sum_layer.weight.copy_(torch.transpose(model.get_input_embeddings().weight.clone(), 0, 1))
 
     logger.info(f"model size: {sum(p.numel() for p in model.parameters())}")
     vocab_size = model.get_input_embeddings().weight.size(0)
     hidden_size = model.get_input_embeddings().weight.size(1)
-
-    # model = accelerator.prepare(model) # incorporating FSDP; unused for now
-    # train_dataloader, eval_dataloader = accelerator.prepare(
-    #     train_dataloader, eval_dataloader
-    # ) # incorporating FSDP
-    # Han: incorporating FSDP in ensembled decoding needs non-trivial changes, use the vanilla multi_gpu model for now
-    # model = model.to(accelerator.device)
 
     # Save accelerator state
     if args.train_mode == "resume": # resuming job would still break the strict reproducibility, since we are not saving noise states
@@ -837,9 +719,6 @@ def main():
         with open(out_json_fn, 'w') as f:
             f.write('placeholder, program not finished\n')
 
-    # Han: can try different sentence tranformers models later (note the tokenizer compatibility!)
-    args.sim_model = None # if needed, specify in the input jsonl file, e.g., sentence-transformers/all-roberta-large-v1
-    args.sim_tokenizer = None
     args.tokenizer = tokenizer
 
     # Decoding, includes hardcode for now
@@ -853,8 +732,6 @@ def main():
         args.accelerator = accelerator
         args.ctr_model = None
 
-        args.attentionmask_positionids_dict, args.clean_len, args.seq_len = construct_attention_mask(args)
-
         export_list = []
         args.orig_decode_truncate_len = args.decode_truncate_len
         with torch.no_grad():
@@ -866,7 +743,7 @@ def main():
                 ctx_field_name = 'context_string'
                 assert ctx_field_name in _fd
                 assert args.per_device_eval_batch_size == 1
-                # Han: below is needed for AR baselines
+
                 input_ids = torch.LongTensor(tokenizer.encode(_fd[ctx_field_name], add_special_tokens=True)).unsqueeze(0).to(args.accelerator.device)
                 if args.reverse_lm:
                     input_ids = torch.fliplr(input_ids)
@@ -874,40 +751,6 @@ def main():
                     pass
                 args.context_size = input_ids.size(1)
                 args.decode_truncate_len = args.orig_decode_truncate_len - args.context_size # Han: this compensates for the unknown input context size
-
-                sfx_field_name = 'suffix_string'
-                if sfx_field_name in _fd:
-                    suffix_ids = torch.LongTensor(tokenizer.encode(_fd[sfx_field_name], add_special_tokens=False)).unsqueeze(0).to(args.accelerator.device)
-                    if args.reverse_lm:
-                        raise ValueError("suffix control not supported yet for reverse LM")
-                else:
-                    suffix_ids = None
-
-                init_field_name = 'init_string'
-                if init_field_name in _fd:
-                    init_ids = torch.LongTensor(tokenizer.encode(_fd[init_field_name], add_special_tokens=False)).unsqueeze(0).to(args.accelerator.device)
-                    init_x = 2 * args.one_hot_value * torch.nn.functional.one_hot(init_ids, args.vocab_size) - args.one_hot_value
-                    if args.reverse_lm:
-                        raise ValueError("init control not supported yet for reverse LM")
-                else:
-                    init_x = None
-
-                sim_field_name = 'sim_strings'
-                if sim_field_name in _fd:
-                    assert 'sim_model' in _fd # Han: if using models other than sentence-transformers, may need adaptation
-                    if args.sim_tokenizer is None: # Han: only the first sim_model path appeared in the file is used
-                        args.sim_tokenizer = AutoTokenizer.from_pretrained(_fd['sim_model'], use_fast=False)
-                        assert args.sim_tokenizer.get_vocab() == tokenizer.get_vocab()
-                        args.sim_model = AutoModel.from_pretrained(_fd['sim_model']).to(args.accelerator.device)
-                    batch_sim_inputs = args.sim_tokenizer(_fd['sim_strings'], padding=True, truncation=True, return_tensors='pt')
-                    with torch.no_grad():
-                        batch_sim_targets = args.sim_model(input_ids=batch_sim_inputs['input_ids'].to(args.accelerator.device), attention_mask=batch_sim_inputs['attention_mask'].to(args.accelerator.device))
-                        batch_sim_targets = sim_mean_pooling(batch_sim_targets, batch_sim_inputs['attention_mask'].to(args.accelerator.device))
-                        batch_sim_targets = torch.nn.functional.normalize(batch_sim_targets, p=2, dim=1)
-                    if args.reverse_lm:
-                        raise ValueError("similarity control not supported yet for reverse LM")
-                else:
-                    batch_sim_targets = None
 
                 if 'filter_p' in _fd: # Han: token filtering
                     args.filter_top_p = _fd['filter_p']
@@ -918,22 +761,16 @@ def main():
                     continue # skipping very long examples
                 logger.info(f"idx: {_fd['input_index']}")
 
-                repeat_sample = 1 # Han: currently change here manually
+                repeat_sample = 1 # currently change here manually
                 for _r in range(repeat_sample):
-                    history_decode_ids, context_input_ids, diffusion_input_ids, sampled_sequences, context_sequences, gold_sequences = \
-                        decode(args, input_ids, args.decode_depth, total_t, model, tokenizer, suffix_ids=suffix_ids, init_x=init_x, batch_sim_targets=batch_sim_targets)
+                    history_decode_ids, _, _, sampled_sequences, _, _ = \
+                        decode(args, input_ids, args.decode_depth, total_t, model, tokenizer)
                     if _r == 0: # first sample
                         # export to jsonl
                         for _i in range(args.per_device_eval_batch_size):
                             export_dict = dict()
-                            # export_dict['context_len'] = args.context_size
-                            # export_dict['context'] = context_input_ids.tolist()[_i]
-                            # export_dict['context_string'] = context_sequences[_i]
-                            # export_dict['len'] = args.max_seq_length - args.context_size - args.decode_truncate_len
                             export_dict['tokens'] = [history_decode_ids.tolist()[_i]]
                             export_dict['string'] = [sampled_sequences[_i]]
-                            # export_dict['gold_tokens'] = diffusion_input_ids.tolist()[_i]
-                            # export_dict['gold_string'] = gold_sequences[_i]
                             export_dict['assigned_process'] = _fd['assigned_process']
                             export_dict['assigned_model'] = args.model_name_or_path
                             export_dict['output_index'] = len(export_list)

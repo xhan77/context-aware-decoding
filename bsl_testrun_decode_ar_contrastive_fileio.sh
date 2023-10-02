@@ -1,9 +1,7 @@
 #!/usr/bin/bash
 trap "kill 0" EXIT
 
-# example command: bash bsl_testrun_decode_ar_contrastive_fileio.sh 2023 "0,1" 1e-4 1000 "n/a" "fin|/private/home/xhan77/scaling-ssd-2/bsl_logging/nq_swap_1_0.jsonl" 5 1 1.0 "bsl_test_ensemble" 0 2038 10 0.0 0.0 "n/a"
 numgpu=2 # should correspond to number of processes in the input jsonl file
-# available_port=29514 # change if clashing
 available_port=$(python -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
 
 script_role="host" 
@@ -12,13 +10,9 @@ single_device_cuda="0" # inline param, "0", "1", etc
 multi_device_cuda=$2 # inline param, "0,1,2,3", "0", etc
 hf_cache="/private/home/xhan77/.cache/huggingface" 
 core_lm_name="specify_in_input_jsonl|n/a" # facebook/opt-1.3b, google/flan-t5-xl
-main_log_dir="/private/home/xhan77/scaling-ssd-2/bsl_logging"
+main_log_dir="/private/home/xhan77/cad-private/bsl_logging"
 
-interpret_dataset_tokenized_path="skip" # "/private/home/xhan77/score-based-bert-dev/logging/openwebtext_processed_pct100_blk200", "${main_log_dir}/c4_processed_blk500"
-
-# # setup accelerate config
-# accelerate_config="${main_log_dir}/gpu.yaml"
-# CUDA_VISIBLE_DEVICES=${multi_device_cuda} HF_HOME=${hf_cache} accelerate config --config_file ${accelerate_config}
+interpret_dataset_tokenized_path="skip"
 
 # data hyperparameters
 global_max_seq_len=2048 # 200, 500
