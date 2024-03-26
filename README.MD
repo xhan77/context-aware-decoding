@@ -1,3 +1,10 @@
+[Very Raw]
+
+## Overview
+Our work explores the setup where two identical language models are decoded contrastively with different input contexts. However, our code generally supports collaborative or contrastive decoding with multiple language models with different input contexts, by customizing your own input `jsonl` file for inference. 
+
+## Context-aware decoding on CNN-DM and NQ-Swap data
+`bash run_cnndm_custom.sh` or `bash run_nqswap_custom.sh`
 
 ### Evaluation
 After generating the prediction data, you can run the evaluation by running the following script and compare with the gold data.  
