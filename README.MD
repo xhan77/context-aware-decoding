@@ -35,6 +35,8 @@ Below is an example input to our system (from NQ-Swap).
 ### Running context-aware decoding on CNN-DM and NQ-Swap
 Run `bash exp_cnndm.sh` or `bash exp_nqswap.sh`. Both scripts call `run_group_decode_fileio.sh` which subsequently calls `group_decode_fileio.py`. The output will be saved in the same directory as the input files. 
 
+The conda environment we used can be found in `environment.yml`. The main packages used are `pytorch`, `transformers`, and `accelerate`. 
+
 ### Evaluation
 After generating the prediction data, you can run the evaluation by running the following script and compare with the gold data.  
 ```bash
