@@ -46,7 +46,7 @@ def logits_sampling_projection(logits, top_p, one_hot_value):
     filtered_logits = logits.masked_fill(valid_indices == 0, torch.finfo(logits.dtype).min)
     m = torch.distributions.categorical.Categorical(logits=filtered_logits)
     selected = m.sample()
-    return (2 * one_hot_value * torch.nn.functional.one_hot(selected, logits.size(2)) - one_hot_value) #.to(logits.dtype)
+    return (2 * one_hot_value * torch.nn.functional.one_hot(selected, logits.size(2)) - one_hot_value)
 
 
 def filter_logits_top_p(logits, top_p, negative_multiplier=False):
@@ -461,7 +461,7 @@ def main():
     logger.info(f"model size: {sum(p.numel() for p in model.parameters())}")
     vocab_size = model.get_input_embeddings().weight.size(0)
     hidden_size = model.get_input_embeddings().weight.size(1)
-    one_hot_value = 1 # unused
+    one_hot_value = 5.0 # unused
 
     ##########################################
 
