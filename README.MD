@@ -2,10 +2,10 @@
 Context-aware decoding is a simple inference-time method to encourage language models to focus more on given contexts. 
 
 With regular decoding, we sample tokens at each position from an autoregressive language model with: 
-$$y_t \sim \operatorname{softmax}[\operatorname{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t})]$$
+$y_t \sim \operatorname{softmax}[\operatorname{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t})]$
 
 Context-aware decoding samples tokens at each position with: 
-$$y_t \sim \operatorname{softmax}[(1+\alpha) \operatorname{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t}) - \alpha \operatorname{logit}_\theta(y_t \mid \boldsymbol{x}, \boldsymbol{y}_{<t})]$$
+$y_t \sim \operatorname{softmax}[(1+\alpha) \operatorname{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t}) - \alpha \operatorname{logit}_\theta(y_t \mid \boldsymbol{x}, \boldsymbol{y}_{<t})]$
 
 Here $\boldsymbol{c}$ denotes the context that the model should focus more on. Please see more details in [our paper](https://arxiv.org/abs/2305.14739).
 
@@ -41,6 +41,6 @@ The conda environment we used can be found in `environment.yml`. The main packag
 After generating the prediction data, you can run the evaluation by running the following script and compare with the gold data.  
 ```bash
 PRED_PATH=$YOUR_PREDICTION_PATH
-GOLD_DATA_PATH=/fsx-onellm/swj0419/cad/cad-private/eval/gold/likert_evaluation_results.json
+GOLD_DATA_PATH=./eval/gold/likert_evaluation_results.json
 python eval/evaluate_summary.py --pred_path $PRED_PATH --data_path $GOLD_DATA_PATH
 ```

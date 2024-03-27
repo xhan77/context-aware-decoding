@@ -128,10 +128,8 @@ def entity_data(dataset_path):
 if __name__ == "__main__":
     # args parse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path", type=str, default="/fsx-onellm/swj0419/cad/cad-private/eval/gold/likert_evaluation_results.json")
-    parser.add_argument("--pred_path", type=str, default="/fsx-onellm/swj0419/cad/cad-private/eval/cnndm_1_0.jsonl.output_topp0.9_genlen100.jsonl")
-    # data_path = "/fsx-onellm/swj0419/cad/cad-private/eval/gold/likert_evaluation_results.json"
-    # pred_path = "/fsx-onellm/swj0419/cad/cad-private/eval/cnndm_1_0.jsonl.output_topp0.9_genlen100.jsonl"
+    parser.add_argument("--data_path", type=str, default="./eval/gold/likert_evaluation_results.json")
+    parser.add_argument("--pred_path", type=str, default="./eval/cnndm_example_input/cnndm_1_0.jsonl")
     args = parser.parse_args()
 
     data_path = args.data_path
