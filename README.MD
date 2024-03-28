@@ -43,7 +43,8 @@ The conda environment we used can be found in `environment.yml`. The main packag
 ### Evaluation
 After generating the prediction data, you can run the evaluation by running the following script and compare with the gold data.  
 ```bash
-PRED_PATH=$YOUR_PREDICTION_PATH # for example: ./eval/cnndm_example_input/cnndm_1.5_-0.5.jsonl.output_topp0.9_genlen100.jsonl
+PRED_PATH=./eval/cnndm_example_input/cnndm_1.5_-0.5.jsonl.output_topp0.9_genlen100.jsonl 
 GOLD_DATA_PATH=./eval/cnndm_example_input/cnndm_1_0.jsonl
 python eval/evaluate_summary.py --pred_path $PRED_PATH --data_path $GOLD_DATA_PATH
 ```
+We provide our output for CNN-DM using standard decoding (`cnndm_1_0.jsonl.output_topp0.9_genlen100`) and context-aware decoding (`cnndm_1.5_-0.5.jsonl.output_topp0.9_genlen100.jsonl`) in `eval/cnndm_example_input/`.
