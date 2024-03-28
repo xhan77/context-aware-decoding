@@ -76,65 +76,27 @@ def evaluate_qa(index2ex, eval_file):
 
 # read data
 def entity_data(dataset_path):
+    raw_data = []
     with open(dataset_path) as f:
-        raw_data = json.loads(f.read())
-
-    prompt = ""
-    count = 0
-    index2ex = {}
-    data = []
-    # read demos
-    all_articles = []
-
-    for i, d in enumerate(raw_data):
-        ex = d
-        if ex["model"] == "openai_text-davinci-002 (0 shot)" and ex["dataset"] == "xsum":
-            gold_label = ex["summary"]
-            # if ex['article'][:50] not in article2gold_sum:
-            #     continue
-            # gold_label = article2gold_sum[ex['article'][:50]]
-
-            article = ex['article'].replace("\n", " ")
-            if len(article.split()) > 800:
-                continue
-            if article[:50] in all_articles:
-                # print("duplicate")
-                continue
-            ex_text = prompt + f"Article: {article} Summarize the article in one sentence. Summary:"  
-            ex_text_query_only = f"Summarize the article in one sentence. Summary:" 
-
-
-            new_ex = {}
-            new_ex[f"input_index"] = count
-            new_ex["assigned_process"] = 0
-
-            # swj change
-            new_ex["context_string"] = ex_text
-            new_ex["gold_answers"] = gold_label
-            data.append(new_ex)
-            new_ex["article"] = article
-            index2ex[count] = new_ex
-            
-            new_ex = {}
-            new_ex[f"input_index"] = count
-            new_ex["assigned_process"] = 1
-            new_ex["context_string"] =  ex_text_query_only  
-            new_ex["gold_answers"] = gold_label
-            count += 1
-            data.append(new_ex)
-    return index2ex, data
+        for line in f:
+            ex = json.loads(line)
+            if ex["assigned_process"] == 0:
+                raw_data.append(ex)
+            # break
+        # raw_data = json.loads(f.read())
+    return raw_data
 
 
 if __name__ == "__main__":
     # args parse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path", type=str, default="./eval/gold/likert_evaluation_results.json")
-    parser.add_argument("--pred_path", type=str, default="./eval/cnndm_example_input/cnndm_1_0.jsonl")
+    parser.add_argument("--data_path", type=str, default="./eval/cnndm_example_input/cnndm_1_0.jsonl")
+    parser.add_argument("--pred_path", type=str, default="./eval/cnndm_example_input/cnndm_1.5_-0.5.jsonl.output_topp0.9_genlen100.jsonl")
     args = parser.parse_args()
 
     data_path = args.data_path
     pred_path = args.pred_path
-    index2ex, data = entity_data(data_path)
+    index2ex = entity_data(data_path)
     evaluate_qa(index2ex, pred_path)
     
     

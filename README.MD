@@ -7,7 +7,10 @@ $y_t \sim \operatorname{softmax}[\operatorname{logit}_\theta(y_t \mid \boldsymbo
 Context-aware decoding samples tokens at each position with: 
 $y_t \sim \operatorname{softmax}[(1+\alpha) \operatorname{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t}) - \alpha \operatorname{logit}_\theta(y_t \mid \boldsymbol{x}, \boldsymbol{y}_{<t})]$
 
-Here $\boldsymbol{c}$ denotes the context that the model should focus more on. Please see more details in [our paper](https://arxiv.org/abs/2305.14739).
+Here $\boldsymbol{c}$ denotes the context that the model should focus more on. Please see more details in [our paper](https://arxiv.org/abs/2305.14739). Here is an figure illustrating the difference between regular decoding and context-aware decoding.
+<!-- ![decoding](image/main.png =250x) -->
+<img src="image/main.png" width="500">
+
 
 While context-aware decoding is based on the setup where one language model is decoded contrastively with different input contexts, *our code generally supports collaborative or contrastive decoding with multiple language models with different input contexts*. You can easily customize the inference setup with your own input `jsonl` file. 
 
@@ -40,7 +43,7 @@ The conda environment we used can be found in `environment.yml`. The main packag
 ### Evaluation
 After generating the prediction data, you can run the evaluation by running the following script and compare with the gold data.  
 ```bash
-PRED_PATH=$YOUR_PREDICTION_PATH
-GOLD_DATA_PATH=./eval/gold/likert_evaluation_results.json
+PRED_PATH=$YOUR_PREDICTION_PATH # for example: ./eval/cnndm_example_input/cnndm_1.5_-0.5.jsonl.output_topp0.9_genlen100.jsonl
+GOLD_DATA_PATH=./eval/cnndm_example_input/cnndm_1_0.jsonl
 python eval/evaluate_summary.py --pred_path $PRED_PATH --data_path $GOLD_DATA_PATH
 ```
