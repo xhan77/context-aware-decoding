@@ -2,7 +2,7 @@
 GLOBALLEN="2048"
 MAXCTXLEN="2038"
 GENLEN="10"
-FN_PREFIX="nqswap_example_input/nqswap"
+FN_PREFIX="eval/nqswap_example_input/nqswap"
 
 for WEIGHT in "1_0" "2_-1"
 do
