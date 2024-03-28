@@ -6,7 +6,7 @@ This repository provides an original implementation of [Trusting Your Evidence: 
 Context-aware decoding is a simple inference-time method to encourage language models to focus more on given contexts. 
 
 With regular decoding, we sample tokens at each position from an autoregressive language model with:
-$$y_{\lt t} \sim \text{softmax}[ \text{logit}_\theta ( y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}) ]$$
+$$y_{\lt t} \sim \text{softmax} \left[ \text{logit}_\theta \left( y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{\lt t} \right) \right]$$
 
 Context-aware decoding samples tokens at each position with:
 $$y_t \sim \text{softmax}[(1+\alpha) \text{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t}) - \alpha \text{logit}_\theta(y_t \mid \boldsymbol{x}, \boldsymbol{y}_{<t})]$$
