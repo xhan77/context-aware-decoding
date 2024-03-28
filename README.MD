@@ -1,6 +1,3 @@
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css" integrity="sha384-HdX4cZqp5kZWu6Dc/XBIInPB09dS0xKbe51KeL4gUKRCPIc3fBw3+5EzcfUS+qEk" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.js" integrity="sha384-WHbHHmSZ5VZHXJokas3HfAXKf7CFRO2t8fUoPvZA0+IM7Oz0g07a8W7Eel28GZgF" crossorigin="anonymous"></script>
-
 ## Context-aware decoding
 This repository provides an original implementation of [Trusting Your Evidence: Hallucinate Less with Context-aware Decoding](https://arxiv.org/pdf/2305.14739.pdf) by *Weijia Shi, *Xiaochuang Han, Mike Lewis, Yulia Tsvetkov, Luke Zettlemoyer, Scott Yih.
 
@@ -9,10 +6,14 @@ This repository provides an original implementation of [Trusting Your Evidence: 
 Context-aware decoding is a simple inference-time method to encourage language models to focus more on given contexts. 
 
 With regular decoding, we sample tokens at each position from an autoregressive language model with:
-$$ y_t \sim \text{softmax}[\text{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t})] $$
+$$
+y_t \sim \text{softmax}[\text{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t})]
+$$
 
 Context-aware decoding samples tokens at each position with:
-$$ y_t \sim \text{softmax}[(1+\alpha) \text{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t}) - \alpha \text{logit}_\theta(y_t \mid \boldsymbol{x}, \boldsymbol{y}_{<t})] $$
+$$
+y_t \sim \text{softmax}[(1+\alpha) \text{logit}_\theta(y_t \mid \boldsymbol{c}, \boldsymbol{x}, \boldsymbol{y}_{<t}) - \alpha \text{logit}_\theta(y_t \mid \boldsymbol{x}, \boldsymbol{y}_{<t})]
+$$
 
 Here $\boldsymbol{c}$ denotes the context that the model should focus more on. Please see more details in [our paper](https://arxiv.org/abs/2305.14739). Here is an figure illustrating the difference between regular decoding and context-aware decoding.
 <!-- ![decoding](image/main.png =250x) -->
