@@ -3,7 +3,7 @@ This repository provides an original implementation of [Trusting Your Evidence: 
 
 ## Overview
 
-Context-aware decoding is a simple inference-time method to encourage language models to focus more on given contexts. 
+Context-aware decoding is a simple inference-time method to encourage language models to focus more on given contexts. $E=mc^2$
 
 With regular decoding, we sample tokens at each position from an autoregressive language model with:
 $$
