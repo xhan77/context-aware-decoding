@@ -7,7 +7,7 @@ Context-aware decoding is a simple inference-time method to encourage language m
 
 With regular decoding, we sample tokens at each position from an autoregressive language model with:
 $$
-y_t \text{softmax}[\text{logit}_\theta(y_t \mid c, x, y_{<t})]
+y_t \sim \text{softmax}[\text{logit}_{\theta}(y_t \mid c, x, y_{<t})]
 $$
 
 Context-aware decoding samples tokens at each position with:
