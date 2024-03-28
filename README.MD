@@ -6,7 +6,8 @@ This repository provides an original implementation of [Trusting Your Evidence: 
 Context-aware decoding is a simple inference-time method to encourage language models to focus more on given contexts. 
 
 With regular decoding, we sample tokens at each position from an autoregressive language model with:
-$$$$
+<!-- ![eq1](image/no_cad.png =250x) -->
+<img src="image/no_cad.png" width="500">
 
 Context-aware decoding samples tokens at each position with: 
 $$$$
