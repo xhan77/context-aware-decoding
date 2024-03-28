@@ -1,3 +1,6 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css" integrity="sha384-HdX4cZqp5kZWu6Dc/XBIInPB09dS0xKbe51KeL4gUKRCPIc3fBw3+5EzcfUS+qEk" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.js" integrity="sha384-WHbHHmSZ5VZHXJokas3HfAXKf7CFRO2t8fUoPvZA0+IM7Oz0g07a8W7Eel28GZgF" crossorigin="anonymous"></script>
+
 ## Context-aware decoding
 This repository provides an original implementation of [Trusting Your Evidence: Hallucinate Less with Context-aware Decoding](https://arxiv.org/pdf/2305.14739.pdf) by *Weijia Shi, *Xiaochuang Han, Mike Lewis, Yulia Tsvetkov, Luke Zettlemoyer, Scott Yih.
 
