@@ -11,7 +11,7 @@ With regular decoding, we sample tokens at each position from an autoregressive 
 
 Context-aware decoding samples tokens at each position with: 
 <!-- ![eq1](image/cad.png =250x) -->
-<img src="image/cad.png" width="500">
+<img src="image/cad.png" width="480">
 
 Here $\boldsymbol{c}$ denotes the context that the model should focus more on. Please see more details in [our paper](https://arxiv.org/abs/2305.14739). Here is an figure illustrating the difference between regular decoding and context-aware decoding.
 <!-- ![decoding](image/main.png =250x) -->
