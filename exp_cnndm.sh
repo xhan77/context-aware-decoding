@@ -2,7 +2,7 @@
 GLOBALLEN="2048"
 MAXCTXLEN="1948"
 GENLEN="100"
-FN_PREFIX="cnndm_example_input/cnndm"
+FN_PREFIX="eval/cnndm_example_input/cnndm"
 
 for WEIGHT in "1_0" "1.5_-0.5"
 do
